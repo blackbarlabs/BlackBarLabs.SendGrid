@@ -1,0 +1,80 @@
+﻿
+
+<!doctype html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+
+
+    <title>Responsive Email Template</title>
+
+    <style type="text/css">
+        .ReadMsgBody {
+            width: 100%;
+            background-color: #ffffff;
+        }
+
+        .ExternalClass {
+            width: 100%;
+            background-color: #ffffff;
+        }
+        button {
+            background-color: #4CAF50; /* Green */
+            border: none;
+            color: white;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            box-sizing: content-box;
+        }       
+        body {
+            width: 100%;
+            background-color: #ffffff;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+            font-family: Arial, Times, serif;
+        }
+
+        table {
+            border-collapse: collapse;
+        }
+
+        @media only screen and (max-width: 640px) {
+            body[yahoo] .deviceWidth {
+                width: 440px !important;
+                padding: 0;
+            }
+
+            body[yahoo] .center {
+                text-align: center !important;
+            }
+        }
+
+        @media only screen and (max-width: 479px) {
+            body[yahoo] .deviceWidth {
+                width: 280px !important;
+                padding: 0;
+            }
+
+            body[yahoo] .center {
+                text-align: center !important;
+            }
+        }
+
+        hr {
+            border: none;
+            height: 2px;
+            color: #333; /* old IE */
+            background-color: #333; /* Modern Browsers */
+        }
+    </style>
+</head>
+
+<body leftmargin="0" topmargin="0" marginwidth="0" marginheight="0" yahoo="fix" style="font-family: Arial, Times, serif">
+
+ 
+</body>
+</html>
