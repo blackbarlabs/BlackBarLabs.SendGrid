@@ -55,6 +55,10 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\BlackBarLabs.Web\BlackBarLabs.Web.csproj">
+      <Project>{5bb52391-2704-44c0-bc8a-dbbe31498814}</Project>
+      <Name>BlackBarLabs.Web</Name>
+    </ProjectReference>
     <ProjectReference Include="..\BlackBarLabs.SendGrid\BlackBarLabs.SendGrid.csproj">
       <Project>{c6e444da-3991-43e3-a6c8-56db53670970}</Project>
       <Name>BlackBarLabs.SendGrid</Name>
@@ -62,6 +66,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="email.txt" />
   </ItemGroup>
   <Choose>
     <When Condition="'$(VisualStudioVersion)' == '10.0' And '$(IsCodedUITest)' == 'True'">
