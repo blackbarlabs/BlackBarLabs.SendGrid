@@ -15,13 +15,18 @@ namespace BlackBarLabs.SendGrid
     {
         private readonly string username;
         private readonly string password;
-        public Mailer(string username, string password)
+        private readonly string toAddressTestOverride;
+        public Mailer(string username, string password, string toAddressTestOverride = null)
         {
             this.username = username;
             this.password = password;
+            this.toAddressTestOverride = toAddressTestOverride;
         }
         public async Task SendEmailMessageAsync(string toAddress, string fromAddress, string fromName, string subject, string html, IDictionary<string, List<string>> substitutions = null)
         {
+            if (!string.IsNullOrEmpty(toAddressTestOverride))
+                toAddress = toAddressTestOverride;
+
             // Create the email object first, then add the properties.
             var myMessage = new SendGridMessage();
             myMessage.AddTo(toAddress);
@@ -61,12 +66,12 @@ namespace BlackBarLabs.SendGrid
             }
         }
 
-        private static void ValidateMessageSubstitutions(string html, IDictionary<string, List<string>>substitutions)
+        private static void ValidateMessageSubstitutions(string html, IDictionary<string, List<string>> substitutions)
         {
             if (null == substitutions) return;
             foreach (var sub in substitutions)
             {
-                if(!html.Contains(sub.Key))
+                if (!html.Contains(sub.Key))
                     throw new EmailSubstitutionParameterException("Could not find substitution string " + sub.Key + " in email text.");
                 if (null == sub.Value)
                     throw new EmailSubstitutionParameterException("No list of substitutions given for substitution value " + sub.Key);
