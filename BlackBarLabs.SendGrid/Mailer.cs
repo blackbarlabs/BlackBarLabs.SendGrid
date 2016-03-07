@@ -25,8 +25,21 @@ namespace BlackBarLabs.SendGrid
         public async Task SendEmailMessageAsync(string toAddress, string fromAddress, string fromName, string subject, string html, IDictionary<string, List<string>> substitutions = null)
         {
             if (!string.IsNullOrEmpty(toAddressTestOverride))
-                toAddress = toAddressTestOverride;
+            {
+                var toAddresses = toAddressTestOverride.Split(',');
+                foreach (var address in toAddresses)
+                {
+                    await DispatchMessageAsync(address, fromAddress, fromName, subject, html, substitutions);
+                }
+                return;
+            }
 
+            await DispatchMessageAsync(toAddress, fromAddress, fromName, subject, html, substitutions);
+        }
+
+        public async Task DispatchMessageAsync(string toAddress, string fromAddress, string fromName, string subject,
+            string html, IDictionary<string, List<string>> substitutions = null)
+        {
             // Create the email object first, then add the properties.
             var myMessage = new SendGridMessage();
             myMessage.AddTo(toAddress);
@@ -65,6 +78,7 @@ namespace BlackBarLabs.SendGrid
                 throw new ApplicationException(details.ToString(), ex);
             }
         }
+
 
         private static void ValidateMessageSubstitutions(string html, IDictionary<string, List<string>> substitutions)
         {
