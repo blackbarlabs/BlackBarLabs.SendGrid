@@ -6,6 +6,7 @@ using System.Net.Mail;
 using System.Text;
 using System.Threading.Tasks;
 using BlackBarLabs.SendGrid.Exceptions;
+using BlackBarLabs.Web;
 using Exceptions;
 using SendGrid;
 
@@ -22,23 +23,26 @@ namespace BlackBarLabs.SendGrid
             this.password = password;
             this.toAddressTestOverride = toAddressTestOverride;
         }
-        public async Task SendEmailMessageAsync(string toAddress, string fromAddress, string fromName, string subject, string html, IDictionary<string, List<string>> substitutions = null)
+        public async Task SendEmailMessageAsync(string toAddress, string fromAddress, string fromName, string subject, string html, 
+            EmailSendSuccessDelegate onSuccess, 
+            IDictionary<string, List<string>> substitutions = null)
         {
             if (!string.IsNullOrEmpty(toAddressTestOverride))
             {
                 var toAddresses = toAddressTestOverride.Split(',');
                 foreach (var address in toAddresses)
                 {
-                    await DispatchMessageAsync(address, fromAddress, fromName, subject, html, substitutions);
+                    await DispatchMessageAsync(address, fromAddress, fromName, subject, html, onSuccess, substitutions);
                 }
                 return;
             }
 
-            await DispatchMessageAsync(toAddress, fromAddress, fromName, subject, html, substitutions);
+            await DispatchMessageAsync(toAddress, fromAddress, fromName, subject, html, onSuccess, substitutions);
         }
 
         public async Task DispatchMessageAsync(string toAddress, string fromAddress, string fromName, string subject,
-            string html, IDictionary<string, List<string>> substitutions = null)
+            string html, EmailSendSuccessDelegate onSuccess,
+            IDictionary<string, List<string>> substitutions = null)
         {
             // Create the email object first, then add the properties.
             var myMessage = new SendGridMessage();
@@ -77,6 +81,7 @@ namespace BlackBarLabs.SendGrid
 
                 throw new ApplicationException(details.ToString(), ex);
             }
+            onSuccess.Invoke(toAddress);
         }
 
 
