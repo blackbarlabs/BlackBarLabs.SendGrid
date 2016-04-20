@@ -25,24 +25,26 @@ namespace BlackBarLabs.SendGrid
         }
         public async Task SendEmailMessageAsync(string toAddress, string fromAddress, string fromName, string subject, string html, 
             EmailSendSuccessDelegate onSuccess, 
-            IDictionary<string, List<string>> substitutions = null)
+            IDictionary<string, List<string>> substitutions,
+            Action<string, IDictionary<string, string>> logIssue)
         {
             if (!string.IsNullOrEmpty(toAddressTestOverride))
             {
                 var toAddresses = toAddressTestOverride.Split(',');
                 foreach (var address in toAddresses)
                 {
-                    await DispatchMessageAsync(address, fromAddress, fromName, subject, html, onSuccess, substitutions);
+                    await DispatchMessageAsync(address, fromAddress, fromName, subject, html, onSuccess, substitutions, logIssue);
                 }
                 return;
             }
 
-            await DispatchMessageAsync(toAddress, fromAddress, fromName, subject, html, onSuccess, substitutions);
+            await DispatchMessageAsync(toAddress, fromAddress, fromName, subject, html, onSuccess, substitutions, logIssue);
         }
 
         public async Task DispatchMessageAsync(string toAddress, string fromAddress, string fromName, string subject,
             string html, EmailSendSuccessDelegate onSuccess,
-            IDictionary<string, List<string>> substitutions = null)
+            IDictionary<string, List<string>> substitutions,
+            Action<string, IDictionary<string, string>> logIssue)
         {
             // Create the email object first, then add the properties.
             var myMessage = new SendGridMessage();
@@ -51,7 +53,7 @@ namespace BlackBarLabs.SendGrid
             myMessage.Subject = subject;
             myMessage.Html = html;
 
-            ValidateMessageSubstitutions(html, substitutions);
+            ValidateMessageSubstitutions(html, substitutions, logIssue);
             if (default(IDictionary<string, List<string>>) != substitutions)
             {
                 foreach (var substitutionsKvp in substitutions)
@@ -85,24 +87,54 @@ namespace BlackBarLabs.SendGrid
         }
 
 
-        private static void ValidateMessageSubstitutions(string html, IDictionary<string, List<string>> substitutions)
+        private static void ValidateMessageSubstitutions(string html, IDictionary<string, List<string>> substitutions,
+            Action<string, IDictionary<string, string>> logIssue)
         {
             if (null == substitutions) return;
+
+            var keysToRemove = new List<string>();
             foreach (var sub in substitutions)
             {
+                var conditions = new Dictionary<string, string>
+                {
+                    { "html", html },
+                    { "substituations",
+                        String.Join("\r", substitutions.Select(kvp => string.Format("[{0}]:[{1}]", kvp.Key, kvp.Value)))  },
+                    { "substitution-key", sub.Key },
+                    { "substitution-value", String.Join("\r", sub.Value) }
+                };
+
                 if (!html.Contains(sub.Key))
-                    throw new EmailSubstitutionParameterException("Could not find substitution string " + sub.Key + " in email text.");
+                {
+                    logIssue("Could not find substitution string " + sub.Key + " in email text.", conditions);
+                    keysToRemove.Add(sub.Key);
+                    continue;
+                }
                 if (null == sub.Value)
-                    throw new EmailSubstitutionParameterException("No list of substitutions given for substitution value " + sub.Key);
+                {
+                    logIssue("No list of substitutions given for substitution value " + sub.Key, conditions);
+                    keysToRemove.Add(sub.Key);
+                    continue;
+                }
                 if (sub.Value.Count == 0)
-                    throw new EmailSubstitutionParameterException("No value given for substitution value " + sub.Key);
+                {
+                    logIssue("No value given for substitution value " + sub.Key, conditions);
+                    keysToRemove.Add(sub.Key);
+                    continue;
+                }
                 var values = sub.Value;
                 foreach (var value in values)
                 {
                     if (string.IsNullOrEmpty(value))
-                        throw new EmailSubstitutionParameterException("String is null for substitution value " + sub.Key);
+                    {
+                        logIssue("String is null for substitution value " + sub.Key, conditions);
+                        keysToRemove.Add(sub.Key);
+                        continue;
+                    }
                 }
             }
+            foreach (var keyToRemove in keysToRemove)
+                substitutions.Remove(keyToRemove);
         }
     }
 }
