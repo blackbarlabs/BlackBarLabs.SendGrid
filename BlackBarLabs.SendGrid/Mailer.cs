@@ -9,6 +9,7 @@ using BlackBarLabs.SendGrid.Exceptions;
 using BlackBarLabs.Web;
 using Exceptions;
 using SendGrid;
+using System.Configuration;
 
 namespace BlackBarLabs.SendGrid
 {
@@ -16,29 +17,32 @@ namespace BlackBarLabs.SendGrid
     {
         private readonly string username;
         private readonly string password;
-        private readonly string toAddressTestOverride;
-        public Mailer(string username, string password, string toAddressTestOverride = null)
+        public Mailer(string username, string password)
         {
             this.username = username;
             this.password = password;
-            this.toAddressTestOverride = toAddressTestOverride;
         }
         public async Task SendEmailMessageAsync(string toAddress, string fromAddress, string fromName, string subject, string html, 
             EmailSendSuccessDelegate onSuccess, 
             IDictionary<string, List<string>> substitutions,
             Action<string, IDictionary<string, string>> logIssue)
         {
-            if (!string.IsNullOrEmpty(toAddressTestOverride))
+            var emailMuteString = ConfigurationManager.AppSettings["BlackBarLabs.Web.SendMailService.Mute"];
+            var emailMute = String.Compare(emailMuteString, "true", true) == 0;
+            var copyEmail = ConfigurationManager.AppSettings["BlackBarLabs.Web.SendMailService.CopyAllAddresses"];
+            
+            if(!emailMute)
+                await DispatchMessageAsync(toAddress, fromAddress, fromName, subject, html, onSuccess, substitutions, logIssue);
+
+            if (!string.IsNullOrEmpty(copyEmail))
             {
-                var toAddresses = toAddressTestOverride.Split(',');
+                var toAddresses = copyEmail.Split(',');
                 foreach (var address in toAddresses)
                 {
                     await DispatchMessageAsync(address, fromAddress, fromName, subject, html, onSuccess, substitutions, logIssue);
                 }
                 return;
             }
-
-            await DispatchMessageAsync(toAddress, fromAddress, fromName, subject, html, onSuccess, substitutions, logIssue);
         }
 
         public async Task DispatchMessageAsync(string toAddress, string fromAddress, string fromName, string subject,
