@@ -30,10 +30,16 @@ namespace BlackBarLabs.SendGrid
             var emailMuteString = ConfigurationManager.AppSettings["BlackBarLabs.Web.SendMailService.Mute"];
             var emailMute = String.Compare(emailMuteString, "true", true) == 0;
             var copyEmail = ConfigurationManager.AppSettings["BlackBarLabs.Web.SendMailService.CopyAllAddresses"];
-            
-            if(!emailMute)
-                await DispatchMessageAsync(toAddress, fromAddress, fromName, subject, html, onSuccess, substitutions, logIssue);
 
+            if (!emailMute)
+            {
+                if (!EmailIsInMuteAddresses(toAddress))
+                {
+                    await
+                        DispatchMessageAsync(toAddress, fromAddress, fromName, subject, html, onSuccess, substitutions,
+                            logIssue);
+                }
+            }
             if (!string.IsNullOrEmpty(copyEmail))
             {
                 var toAddresses = copyEmail.Split(',');
@@ -43,6 +49,15 @@ namespace BlackBarLabs.SendGrid
                 }
                 return;
             }
+        }
+
+        private static bool EmailIsInMuteAddresses(string toAddress)
+        {
+            var muteAddresses = ConfigurationManager.AppSettings["BlackBarLabs.Web.SendMailService.SpecificAddressesToMute"];
+            if (string.IsNullOrEmpty(muteAddresses))
+                return false;
+            var toAddressesSplit = muteAddresses.Split(',');
+            return toAddressesSplit.Any(address => address == toAddress);
         }
 
         public async Task DispatchMessageAsync(string toAddress, string fromAddress, string fromName, string subject,
