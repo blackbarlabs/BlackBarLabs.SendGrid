@@ -28,9 +28,9 @@ namespace BlackBarLabs.SendGrid
             IDictionary<string, List<string>> substitutions,
             Action<string, IDictionary<string, string>> logIssue)
         {
-            var emailMuteString =  CloudConfigurationManager.GetSetting("BlackBarLabs.Web.SendMailService.Mute");
+            var emailMuteString = Microsoft.Azure.CloudConfigurationManager.GetSetting("BlackBarLabs.Web.SendMailService.Mute");
             var emailMute = String.Compare(emailMuteString, "true", true) == 0;
-            var copyEmail =  CloudConfigurationManager.GetSetting("BlackBarLabs.Web.SendMailService.CopyAllAddresses");
+            var copyEmail = Microsoft.Azure.CloudConfigurationManager.GetSetting("BlackBarLabs.Web.SendMailService.CopyAllAddresses");
 
             if (!emailMute)
             {
@@ -54,7 +54,7 @@ namespace BlackBarLabs.SendGrid
 
         private static bool EmailIsInMuteAddresses(string toAddress)
         {
-            var muteAddresses =  CloudConfigurationManager.GetSetting("BlackBarLabs.Web.SendMailService.SpecificAddressesToMute");
+            var muteAddresses = Microsoft.Azure.CloudConfigurationManager.GetSetting("BlackBarLabs.Web.SendMailService.SpecificAddressesToMute");
             if (string.IsNullOrEmpty(muteAddresses))
                 return false;
             var toAddressesSplit = muteAddresses.Split(',');
