@@ -23,6 +23,7 @@ namespace BlackBarLabs.SendGrid
             this.username = username;
             this.password = password;
         }
+
         public async Task SendEmailMessageAsync(string toAddress, string fromAddress, string fromName, string subject, string html, 
             EmailSendSuccessDelegate onSuccess, 
             IDictionary<string, List<string>> substitutions,
