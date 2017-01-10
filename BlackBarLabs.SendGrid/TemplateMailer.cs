@@ -33,8 +33,9 @@ namespace BlackBarLabs.SendGrid
             myMessage.From = new MailAddress(fromAddress, fromName);
             myMessage.Subject = subject;
             myMessage.EnableTemplateEngine(template);
+            myMessage.Text = "asdf";
+            myMessage.Html = "<html></html>";
             
-
             if (default(IDictionary<string, List<string>>) != substitutions)
             {
                 foreach (var substitutionsKvp in substitutions)
