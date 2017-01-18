@@ -11,7 +11,7 @@ using Exceptions;
 
 namespace BlackBarLabs.SendGrid
 {
-    public class TemplateMailer : Web.ISendMailService
+    public class TemplateMailer : EastFive.Api.Services.ISendMessageService
     {
         private readonly string username;
         private readonly string password;
@@ -66,6 +66,11 @@ namespace BlackBarLabs.SendGrid
                 throw new ApplicationException(details.ToString(), ex);
             }
             onSuccess.Invoke(toAddress);
+        }
+
+        public Task<TResult> SendEmailMessageAsync<TResult>(string toAddress, string toName, string fromAddress, string fromName, string templateName, IDictionary<string, string> substitutionsSingle, IDictionary<string, string[]> substitutionsMultiple, Func<string, TResult> onSuccess, Func<TResult> onServiceUnavailable, Func<string, TResult> onFailed)
+        {
+            throw new NotImplementedException();
         }
     }
 }
