@@ -11,10 +11,11 @@ using Exceptions;
 using SendGrid;
 using System.Configuration;
 using Microsoft.WindowsAzure;
+using EastFive.Api.Services;
 
 namespace BlackBarLabs.SendGrid
 {
-    public class Mailer : Web.ISendMailService
+    public class Mailer : ISendMessageService
     {
         private readonly string username;
         private readonly string password;
@@ -24,8 +25,13 @@ namespace BlackBarLabs.SendGrid
             this.password = password;
         }
 
+        public Task<TResult> SendEmailMessageAsync<TResult>(string toAddress, string toName, string fromAddress, string fromName, string templateName, IDictionary<string, string> substitutionsSingle, IDictionary<string, string[]> substitutionsMultiple, Func<string, TResult> onSuccess, Func<TResult> onServiceUnavailable, Func<string, TResult> onFailed)
+        {
+            throw new NotImplementedException();
+        }
+
         public async Task SendEmailMessageAsync(string toAddress, string fromAddress, string fromName, string subject, string html, 
-            EmailSendSuccessDelegate onSuccess, 
+            Func<string, Task> onSuccess, 
             IDictionary<string, List<string>> substitutions,
             Action<string, IDictionary<string, string>> logIssue)
         {
@@ -63,7 +69,8 @@ namespace BlackBarLabs.SendGrid
         }
 
         public async Task DispatchMessageAsync(string toAddress, string fromAddress, string fromName, string subject,
-            string html, EmailSendSuccessDelegate onSuccess,
+            string html,
+            Func<string, Task> onSuccess,
             IDictionary<string, List<string>> substitutions,
             Action<string, IDictionary<string, string>> logIssue)
         {

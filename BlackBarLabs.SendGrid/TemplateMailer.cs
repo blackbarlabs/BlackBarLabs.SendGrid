@@ -87,7 +87,7 @@ namespace BlackBarLabs.SendGrid
 
         public async Task SendEmailMessageAsync(string toAddress, string fromAddress, string fromName, string subject, 
             string template,
-            EmailSendSuccessDelegate onSuccess,
+            Func<string, Task> onSuccess,
             IDictionary<string, List<string>> substitutions,
             Action<string, IDictionary<string, string>> logIssue)
         {
