@@ -66,9 +66,41 @@ namespace BlackBarLabs.SendGrid
             var transportWeb = new global::SendGrid.Web(credentials);
 
             // Send the email, which returns an awaitable task.
+            return await SendMessageAsync(transportWeb, myMessage,
+                () => onSuccess(toAddress),
+                onFailed);
+        }
+
+        private async Task<TResult> SendMessageAsync<TResult>(global::SendGrid.Web transportWeb, SendGridMessage message,
+            Func<TResult> onSuccess,
+            Func<string, TResult> onFailure)
+        {
+            var emailMuteString = Microsoft.Azure.CloudConfigurationManager.GetSetting("BlackBarLabs.Web.SendMailService.Mute");
+            var emailMute = String.Compare(emailMuteString, "true", true) == 0;
+            var copyEmail = Microsoft.Azure.CloudConfigurationManager.GetSetting("BlackBarLabs.Web.SendMailService.CopyAllAddresses");
             try
             {
-                await transportWeb.DeliverAsync(myMessage);
+                if(!emailMute)
+                    await transportWeb.DeliverAsync(message);
+
+                try
+                {
+                    if (!string.IsNullOrEmpty(copyEmail))
+                    {
+                        var toAddresses = copyEmail.Split(',');
+                        if (toAddresses.Length > 0)
+                        {
+                            message.To = new MailAddress[] { };
+                            message.AddTo(toAddresses);
+                            await transportWeb.DeliverAsync(message);
+                        }
+                    }
+                } catch(Exception ex)
+                {
+                    // TODO: Log this
+                    ex.GetType();
+                }
+                return onSuccess();
             }
             catch (InvalidApiRequestException ex)
             {
@@ -80,9 +112,8 @@ namespace BlackBarLabs.SendGrid
                     details.Append(" -- Error #" + i.ToString() + " : " + ex.Errors[i]);
                 }
 
-                return onFailed(details.ToString());
+                return onFailure(details.ToString());
             }
-            return onSuccess.Invoke(toAddress);
         }
 
         public async Task SendEmailMessageAsync(string toAddress, string fromAddress, string fromName, string subject, 
