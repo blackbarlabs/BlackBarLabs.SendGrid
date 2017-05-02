@@ -3,163 +3,86 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using BlackBarLabs.Web;
-using SendGrid;
 using System.Net.Mail;
 using System.Net;
-using Exceptions;
 using BlackBarLabs.Extensions;
+using SendGrid.Helpers.Mail;
+using BlackBarLabs.Collections.Generic;
+using BlackBarLabs.Web;
+using BlackBarLabs.Linq;
 
 namespace BlackBarLabs.SendGrid
 {
     public class TemplateMailer : EastFive.Api.Services.ISendMessageService
     {
-        private readonly string username;
-        private readonly string password;
+        private readonly string apiKey;
 
-        public TemplateMailer(string username, string password)
+        public TemplateMailer(string apiKey)
         {
-            this.username = username;
-            this.password = password;
+            this.apiKey = apiKey;
         }
 
         public async Task<TResult> SendEmailMessageAsync<TResult>(
-            string toAddress, string toName, 
+            string templateName,
+            string toAddress, string toName,
             string fromAddress, string fromName,
-            string templateName, 
+            string subject,
             IDictionary<string, string> substitutionsSingle,
-            IDictionary<string, string[]> substitutionsMultiple, 
             Func<string, TResult> onSuccess, 
             Func<TResult> onServiceUnavailable,
-            Func<string, TResult> onFailed)
-        {
-            var subject = substitutionsSingle.ContainsKey("subject") ?
-                substitutionsSingle["subject"]
-                :
-                "";
-
-            var myMessage = new SendGridMessage();
-            myMessage.AddTo(toAddress);
-            myMessage.From = new MailAddress(fromAddress, fromName);
-            myMessage.Subject = subject;
-            myMessage.EnableTemplateEngine(templateName);
-            myMessage.Text = "asdf";
-            myMessage.Html = "<html></html>";
-
-            if (default(IDictionary<string, string>) != substitutionsSingle)
-            {
-                foreach (var substitutionsKvp in substitutionsSingle)
-                    myMessage.AddSubstitution(substitutionsKvp.Key,
-                        substitutionsKvp.Value.ToEnumerable().ToList());
-            }
-
-            if (default(IDictionary<string, List<string>>) != substitutionsMultiple)
-            {
-                foreach (var substitutionsKvp in substitutionsMultiple)
-                    myMessage.AddSubstitution(substitutionsKvp.Key, substitutionsKvp.Value.ToList());
-            }
-
-            // Create credentials, specifying your user name and password.
-            var credentials = new NetworkCredential(username, password);
-
-            // Create an Web transport for sending email.
-            var transportWeb = new global::SendGrid.Web(credentials);
-
-            // Send the email, which returns an awaitable task.
-            return await SendMessageAsync(transportWeb, myMessage,
-                () => onSuccess(toAddress),
-                onFailed);
-        }
-
-        private async Task<TResult> SendMessageAsync<TResult>(global::SendGrid.Web transportWeb, SendGridMessage message,
-            Func<TResult> onSuccess,
             Func<string, TResult> onFailure)
         {
-            var emailMuteString = Microsoft.Azure.CloudConfigurationManager.GetSetting("BlackBarLabs.Web.SendMailService.Mute");
-            var emailMute = String.Compare(emailMuteString, "true", true) == 0;
-            var copyEmail = Microsoft.Azure.CloudConfigurationManager.GetSetting("BlackBarLabs.Web.SendMailService.CopyAllAddresses");
-            try
-            {
-                if(!emailMute)
-                    await transportWeb.DeliverAsync(message);
+            var message = new SendGridMessage();
+            message.From = new EmailAddress(fromAddress, fromName);
+            message.Subject = subject;
+            message.TemplateId = templateName;
 
-                try
-                {
-                    if (!string.IsNullOrEmpty(copyEmail))
-                    {
-                        var toAddresses = copyEmail.Split(',');
-                        if (toAddresses.Length > 0)
-                        {
-                            message.To = new MailAddress[] { };
-                            message.AddTo(toAddresses);
-                            await transportWeb.DeliverAsync(message);
-                        }
-                    }
-                } catch(Exception ex)
-                {
-                    // TODO: Log this
-                    ex.GetType();
-                }
-                return onSuccess();
-            }
-            catch (InvalidApiRequestException ex)
-            {
-                var details = new StringBuilder();
+            var emailMuteString = Microsoft.Azure.CloudConfigurationManager.GetSetting(Configuration.MuteEmailToAddress);
+            var emailMute = !String.IsNullOrWhiteSpace(emailMuteString);
+            var toAddressEmail = emailMute?
+                new EmailAddress(emailMuteString, "EMAIL MUTED BY CONFIG")
+                :
+                new EmailAddress(toAddress, toName);
+            message.AddTo(toAddressEmail);
+            if (emailMute)
+                message.SetClickTracking(false, false);
 
-                details.Append("ResponseStatusCode: " + ex.ResponseStatusCode + ".   ");
-                for (int i = 0; i < ex.Errors.Count(); i++)
-                {
-                    details.Append(" -- Error #" + i.ToString() + " : " + ex.Errors[i]);
-                }
+            var copyEmail = Microsoft.Azure.CloudConfigurationManager.GetSetting(Configuration.BccAllAddresses);
+            var bccAddresses = (String.IsNullOrEmpty(copyEmail)? "" : copyEmail)
+                        .Split(',')
+                        .Where(s => !String.IsNullOrWhiteSpace(s))
+                        .Select((bccAddress) => new EmailAddress(bccAddress))
+                        .ToList();
+            if (bccAddresses.Count > 0)
+                message.AddBccs(bccAddresses);
 
-                return onFailure(details.ToString());
-            }
-        }
-
-        public async Task SendEmailMessageAsync(string toAddress, string fromAddress, string fromName, string subject, 
-            string template,
-            Func<string, Task> onSuccess,
-            IDictionary<string, List<string>> substitutions,
-            Action<string, IDictionary<string, string>> logIssue)
-        {
-            var myMessage = new SendGridMessage();
-            myMessage.AddTo(toAddress);
-            myMessage.From = new MailAddress(fromAddress, fromName);
-            myMessage.Subject = subject;
-            myMessage.EnableTemplateEngine(template);
-            myMessage.Text = "asdf";
-            myMessage.Html = "<html></html>";
-            
-            if (default(IDictionary<string, List<string>>) != substitutions)
-            {
-                foreach (var substitutionsKvp in substitutions)
-                    myMessage.AddSubstitution(substitutionsKvp.Key, substitutionsKvp.Value);
-            }
-
-            // Create credentials, specifying your user name and password.
-            var credentials = new NetworkCredential(username, password);
-
-            // Create an Web transport for sending email.
-            var transportWeb = new global::SendGrid.Web(credentials);
+            message.AddSubstitutions(substitutionsSingle
+                .Select(kvp => new KeyValuePair<string, string>($"--{kvp.Key}--", kvp.Value))
+                .ToDictionary());
+            var client = new global::SendGrid.SendGridClient(apiKey);
 
             // Send the email, which returns an awaitable task.
             try
             {
-                await transportWeb.DeliverAsync(myMessage);
+                var response = await client.SendEmailAsync(message);
+                var body = await response.Body.ReadAsStringAsync();
+                if (response.StatusCode.IsSuccess())
+                    return onSuccess(body);
+
+                return onFailure(body);
             }
-            catch (InvalidApiRequestException ex)
+            catch (Exception ex)
             {
-                var details = new StringBuilder();
+                //var details = new StringBuilder();
 
-                details.Append("ResponseStatusCode: " + ex.ResponseStatusCode + ".   ");
-                for (int i = 0; i < ex.Errors.Count(); i++)
-                {
-                    details.Append(" -- Error #" + i.ToString() + " : " + ex.Errors[i]);
-                }
+                //details.Append("ResponseStatusCode: " + ex.ResponseStatusCode + ".   ");
+                //for (int i = 0; i < ex.Errors.Count(); i++)
+                //{
+                //    details.Append(" -- Error #" + i.ToString() + " : " + ex.Errors[i]);
+                //}
 
-                throw new ApplicationException(details.ToString(), ex);
+                return onFailure(ex.ToString());
             }
-            onSuccess.Invoke(toAddress);
         }
     }
 }
