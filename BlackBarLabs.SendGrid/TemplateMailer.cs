@@ -28,6 +28,7 @@ namespace BlackBarLabs.SendGrid
             string fromAddress, string fromName,
             string subject,
             IDictionary<string, string> substitutionsSingle,
+            IDictionary<string, IDictionary<string, string>[]> substitutionsMultiple,
             Func<string, TResult> onSuccess, 
             Func<TResult> onServiceUnavailable,
             Func<string, TResult> onFailure)
@@ -60,6 +61,53 @@ namespace BlackBarLabs.SendGrid
                 .Select(kvp => new KeyValuePair<string, string>($"--{kvp.Key}--", kvp.Value))
                 .ToDictionary());
             var client = new global::SendGrid.SendGridClient(apiKey);
+
+            if (substitutionsMultiple != default(IDictionary<string, IDictionary<string, string>[]>) &&
+               substitutionsMultiple.Count > 0)
+            {
+                var responseTemplates = await client.RequestAsync(global::SendGrid.SendGridClient.Method.GET, urlPath: $"/templates/{templateName}");
+                var templateInfo = await responseTemplates.Body.ReadAsStringAsync();
+                var converter = new Newtonsoft.Json.Converters.ExpandoObjectConverter();
+                dynamic obj = Newtonsoft.Json.JsonConvert.DeserializeObject<System.Dynamic.ExpandoObject>(templateInfo, converter);
+                string html = obj.versions[0].html_content;
+                var htmlDoc = new HtmlAgilityPack.HtmlDocument();
+                htmlDoc.LoadHtml(html);
+                if (htmlDoc.ParseErrors != null && htmlDoc.ParseErrors.Count() > 0)
+                {
+                    throw new Exception();
+                }
+                var substitutionsMultipleExpanded = substitutionsMultiple.SelectMany(
+                    (substitutionMultiple) =>
+                    {
+                        var matchingNodes = htmlDoc.DocumentNode.SelectNodes($"//*[@data='--{substitutionMultiple.Key}--']");
+                        if (matchingNodes != null && matchingNodes.Count > 0)
+                        {
+                            var substituations = matchingNodes
+                                .Select(
+                                    matchingNode =>
+                                    {
+                                        var subText = substitutionMultiple.Value
+                                            .Aggregate(
+                                                "",
+                                                (replacementText, subValues) =>
+                                                {
+                                                    return subValues.Aggregate(
+                                                        matchingNode.OuterHtml,
+                                                        (subTextAggr, sub) =>
+                                                        {
+                                                            subTextAggr = subTextAggr.Replace(sub.Key, sub.Value);
+                                                            return subTextAggr;
+                                                        });
+                                                });
+                                        return new KeyValuePair<string, string>(matchingNode.OuterHtml, subText);
+                                    })
+                                .ToArray();
+                            return substituations;
+                        }
+                        return new KeyValuePair<string, string>[] { };
+                    }).ToDictionary();
+                message.AddSubstitutions(substitutionsMultipleExpanded);
+            }
 
             // Send the email, which returns an awaitable task.
             try
