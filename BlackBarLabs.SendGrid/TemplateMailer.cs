@@ -40,7 +40,7 @@ namespace BlackBarLabs.SendGrid
             var emailMuteString = Microsoft.Azure.CloudConfigurationManager.GetSetting(Configuration.MuteEmailToAddress);
             var emailMute = !String.IsNullOrWhiteSpace(emailMuteString);
             var toAddressEmail = emailMute?
-                new EmailAddress(emailMuteString, "EMAIL MUTED BY CONFIG")
+                new EmailAddress(emailMuteString, $"MUTED[{toAddress}:{toName}]")
                 :
                 new EmailAddress(toAddress, toName);
             message.AddTo(toAddressEmail);
