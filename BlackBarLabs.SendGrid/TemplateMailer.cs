@@ -10,6 +10,7 @@ using SendGrid.Helpers.Mail;
 using BlackBarLabs.Collections.Generic;
 using BlackBarLabs.Web;
 using BlackBarLabs.Linq;
+using EastFive.Api.Services;
 
 namespace BlackBarLabs.SendGrid
 {
@@ -20,6 +21,20 @@ namespace BlackBarLabs.SendGrid
         public TemplateMailer(string apiKey)
         {
             this.apiKey = apiKey;
+        }
+
+        public async Task<SendMessageTemplate[]> ListTemplatesAsync()
+        {
+            var client = new global::SendGrid.SendGridClient(apiKey);
+            var responseTemplates = await client.RequestAsync(global::SendGrid.SendGridClient.Method.GET, urlPath: $"/templates");
+            var templateInfo = await responseTemplates.Body.ReadAsStringAsync();
+            var converter = new Newtonsoft.Json.Converters.ExpandoObjectConverter();
+            dynamic obj = Newtonsoft.Json.JsonConvert.DeserializeObject<System.Dynamic.ExpandoObject>(templateInfo, converter);
+            return ((List<object>)obj.templates).Select((dynamic tmp) => new SendMessageTemplate()
+            {
+                externalTemplateId = tmp.id,
+                name = tmp.name,
+            }).ToArray();
         }
 
         public async Task<TResult> SendEmailMessageAsync<TResult>(
@@ -87,18 +102,18 @@ namespace BlackBarLabs.SendGrid
                                     matchingNode =>
                                     {
                                         var subText = substitutionMultiple.Value
-                                            .Aggregate(
-                                                "",
-                                                (replacementText, subValues) =>
+                                            .Select(
+                                                (subValues) =>
                                                 {
                                                     return subValues.Aggregate(
                                                         matchingNode.OuterHtml,
                                                         (subTextAggr, sub) =>
                                                         {
-                                                            subTextAggr = subTextAggr.Replace(sub.Key, sub.Value);
+                                                            subTextAggr = subTextAggr.Replace($"--{sub.Key}--", sub.Value);
                                                             return subTextAggr;
                                                         });
-                                                });
+                                                })
+                                            .Join(" ");
                                         return new KeyValuePair<string, string>(matchingNode.OuterHtml, subText);
                                     })
                                 .ToArray();
