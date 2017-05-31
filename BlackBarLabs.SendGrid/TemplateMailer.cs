@@ -1,10 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using System.Net.Mail;
-using System.Net;
 using BlackBarLabs.Extensions;
 using SendGrid.Helpers.Mail;
 using BlackBarLabs.Collections.Generic;
@@ -53,7 +50,7 @@ namespace BlackBarLabs.SendGrid
             message.Subject = subject;
             message.TemplateId = templateName;
 
-            var emailMuteString = Microsoft.Azure.CloudConfigurationManager.GetSetting(Configuration.MuteEmailToAddress);
+            var emailMuteString = Microsoft.Azure.CloudConfigurationManager.GetSetting(AppSettings.MuteEmailToAddress);
             var emailMute = !String.IsNullOrWhiteSpace(emailMuteString);
             var toAddressEmail = emailMute?
                 new EmailAddress(emailMuteString, $"MUTED[{toAddress}:{toName}]")
@@ -63,7 +60,7 @@ namespace BlackBarLabs.SendGrid
             if (emailMute)
                 message.SetClickTracking(false, false);
 
-            var copyEmail = Microsoft.Azure.CloudConfigurationManager.GetSetting(Configuration.BccAllAddresses);
+            var copyEmail = Microsoft.Azure.CloudConfigurationManager.GetSetting(AppSettings.BccAllAddresses);
             var bccAddresses = (String.IsNullOrEmpty(copyEmail)? "" : copyEmail)
                         .Split(',')
                         .Where(s => !String.IsNullOrWhiteSpace(s))

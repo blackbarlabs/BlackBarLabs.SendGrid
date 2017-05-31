@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace BlackBarLabs.SendGrid
 {
-    public static class Configuration
+    public static class AppSettings
     {
         public const string ApiKey = "EastFive.SendGrid.ApiKey";
         public const string MuteEmailToAddress = "EastFive.SendGrid.MuteToAddress";
