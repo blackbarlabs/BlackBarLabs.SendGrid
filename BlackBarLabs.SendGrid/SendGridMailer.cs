@@ -2,20 +2,27 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using BlackBarLabs.Extensions;
 using SendGrid.Helpers.Mail;
+
+using BlackBarLabs;
+using BlackBarLabs.Extensions;
 using BlackBarLabs.Collections.Generic;
 using BlackBarLabs.Web;
 using BlackBarLabs.Linq;
-using EastFive.Api.Services;
+using EastFive.Web.Services;
+using EastFive.Collections.Generic;
 
-namespace BlackBarLabs.SendGrid
+namespace EastFive.SendGrid
 {
-    public class TemplateMailer : EastFive.Api.Services.ISendMessageService
+    public class SendGridMailer : ISendMessageService
     {
-        private readonly string apiKey;
+        private string apiKey;
 
-        public TemplateMailer(string apiKey)
+        public SendGridMailer()
+        {
+        }
+
+        internal void Initialize(string apiKey)
         {
             this.apiKey = apiKey;
         }
@@ -50,24 +57,32 @@ namespace BlackBarLabs.SendGrid
             message.Subject = subject;
             message.TemplateId = templateName;
 
-            var emailMuteString = Microsoft.Azure.CloudConfigurationManager.GetSetting(AppSettings.MuteEmailToAddress);
-            var emailMute = !String.IsNullOrWhiteSpace(emailMuteString);
-            var toAddressEmail = emailMute?
-                new EmailAddress(emailMuteString, $"MUTED[{toAddress}:{toName}]")
-                :
-                new EmailAddress(toAddress, toName);
+            var emailMute = false;
+            var toAddressEmail = EastFive.Web.Configuration.Settings.GetString(AppSettings.MuteEmailToAddress,
+                (emailMuteString) =>
+                {
+                    emailMute = true;
+                    return new EmailAddress(emailMuteString, $"MUTED[{toAddress}:{toName}]");
+                },
+                (why) => new EmailAddress(toAddress, toName));
+
             message.AddTo(toAddressEmail);
             if (emailMute)
                 message.SetClickTracking(false, false);
 
-            var copyEmail = Microsoft.Azure.CloudConfigurationManager.GetSetting(AppSettings.BccAllAddresses);
-            var bccAddresses = (String.IsNullOrEmpty(copyEmail)? "" : copyEmail)
+            var bccAddressesAdded = Web.Configuration.Settings.GetString(AppSettings.BccAllAddresses,
+                copyEmail =>
+                {
+                    var bccAddresses = (copyEmail.IsNullOrWhiteSpace() ? "" : copyEmail)
                         .Split(',')
                         .Where(s => !String.IsNullOrWhiteSpace(s))
                         .Select((bccAddress) => new EmailAddress(bccAddress))
                         .ToList();
-            if (bccAddresses.Count > 0)
-                message.AddBccs(bccAddresses);
+                    if (bccAddresses.Any())
+                        message.AddBccs(bccAddresses);
+                    return true;
+                },
+                (why) => false);
 
             message.AddSubstitutions(substitutionsSingle
                 .Select(kvp => new KeyValuePair<string, string>($"--{kvp.Key}--", kvp.Value))
