@@ -18,13 +18,18 @@ namespace EastFive.SendGrid
     {
         private string apiKey;
 
-        public SendGridMailer()
-        {
-        }
-
-        internal void Initialize(string apiKey)
+        public SendGridMailer(string apiKey)
         {
             this.apiKey = apiKey;
+        }
+
+        public static TResult Load<TResult>(
+            Func<SendGridMailer,TResult> onSuccess,
+            Func<string,TResult> onFailure)
+        {
+            return EastFive.Web.Configuration.Settings.GetString(EastFive.SendGrid.AppSettings.ApiKey,
+                key => onSuccess(new SendGridMailer(key)),
+                onFailure);
         }
 
         public async Task<SendMessageTemplate[]> ListTemplatesAsync()
