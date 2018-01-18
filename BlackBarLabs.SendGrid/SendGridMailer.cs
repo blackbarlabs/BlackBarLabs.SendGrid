@@ -98,16 +98,20 @@ namespace EastFive.SendGrid
                substitutionsMultiple.Count > 0)
             {
                 var responseTemplates = await client.RequestAsync(global::SendGrid.SendGridClient.Method.GET, urlPath: $"/templates/{templateName}");
+                if (responseTemplates.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    return onFailure($"The specified template [{templateName}] does not exist.");
                 var templateInfo = await responseTemplates.Body.ReadAsStringAsync();
+                if (!responseTemplates.StatusCode.IsSuccess())
+                    return onFailure($"Failed to aquire template:{templateInfo}");
+
                 var converter = new Newtonsoft.Json.Converters.ExpandoObjectConverter();
                 dynamic obj = Newtonsoft.Json.JsonConvert.DeserializeObject<System.Dynamic.ExpandoObject>(templateInfo, converter);
                 string html = obj.versions[0].html_content;
                 var htmlDoc = new HtmlAgilityPack.HtmlDocument();
                 htmlDoc.LoadHtml(html);
                 if (htmlDoc.ParseErrors != null && htmlDoc.ParseErrors.Count() > 0)
-                {
-                    throw new Exception();
-                }
+                    return onFailure($"Template has parse errors:{htmlDoc.ParseErrors.Select(pe => pe.Reason).Join(";")}");
+
                 var substitutionsMultipleExpanded = substitutionsMultiple.SelectMany(
                     (substitutionMultiple) =>
                     {
@@ -146,10 +150,19 @@ namespace EastFive.SendGrid
             {
                 var response = await client.SendEmailAsync(message);
                 var body = await response.Body.ReadAsStringAsync();
-                if (response.StatusCode.IsSuccess())
+                if (!response.StatusCode.IsSuccess())
+                    return onFailure(body);
+
+                var messageIdHeaders = response.Headers
+                    .Where(header => header.Key == "X-Message-Id");
+                if(!messageIdHeaders.Any())
                     return onSuccess(body);
 
-                return onFailure(body);
+                var messageIds = messageIdHeaders.First().Value;
+                if (!messageIds.Any())
+                    return onSuccess(body);
+
+                return onSuccess(messageIds.First());
             }
             catch (Exception ex)
             {
