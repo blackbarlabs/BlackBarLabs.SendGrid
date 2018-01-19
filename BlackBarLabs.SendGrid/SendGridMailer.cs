@@ -162,7 +162,8 @@ namespace EastFive.SendGrid
                 if (!messageIds.Any())
                     return onSuccess(body);
 
-                return onSuccess(messageIds.First());
+                var messageId = messageIds.First();
+                return onSuccess(messageId);
             }
             catch (Exception ex)
             {
