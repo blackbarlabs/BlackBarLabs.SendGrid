@@ -11,6 +11,7 @@ using BlackBarLabs.Web;
 using BlackBarLabs.Linq;
 using EastFive.Web.Services;
 using EastFive.Collections.Generic;
+using EastFive.Linq;
 
 namespace EastFive.SendGrid
 {
@@ -60,7 +61,7 @@ namespace EastFive.SendGrid
             var message = new SendGridMessage();
             message.From = new EmailAddress(fromAddress, fromName);
             message.Subject = subject;
-            message.TemplateId = templateName;
+            //message.TemplateId = templateName;
 
             var emailMute = false;
             var toAddressEmail = EastFive.Web.Configuration.Settings.GetString(AppSettings.MuteEmailToAddress,
@@ -89,61 +90,91 @@ namespace EastFive.SendGrid
                 },
                 (why) => false);
 
-            message.AddSubstitutions(substitutionsSingle
+            
+            var subsitutionsSingleDictionary = substitutionsSingle
                 .Select(kvp => new KeyValuePair<string, string>($"--{kvp.Key}--", kvp.Value))
-                .ToDictionary());
+                .ToDictionary();
+            message.AddSubstitutions(subsitutionsSingleDictionary);
             var client = new global::SendGrid.SendGridClient(apiKey);
 
-            if (substitutionsMultiple != default(IDictionary<string, IDictionary<string, string>[]>) &&
-               substitutionsMultiple.Count > 0)
-            {
-                var responseTemplates = await client.RequestAsync(global::SendGrid.SendGridClient.Method.GET, urlPath: $"/templates/{templateName}");
-                if (responseTemplates.StatusCode == System.Net.HttpStatusCode.NotFound)
-                    return onFailure($"The specified template [{templateName}] does not exist.");
-                var templateInfo = await responseTemplates.Body.ReadAsStringAsync();
-                if (!responseTemplates.StatusCode.IsSuccess())
-                    return onFailure($"Failed to aquire template:{templateInfo}");
+            var responseTemplates = await client.RequestAsync(global::SendGrid.SendGridClient.Method.GET, urlPath: $"/templates/{templateName}");
+            if (responseTemplates.StatusCode == System.Net.HttpStatusCode.NotFound)
+                return onFailure($"The specified template [{templateName}] does not exist.");
+            var templateInfo = await responseTemplates.Body.ReadAsStringAsync();
+            if (!responseTemplates.StatusCode.IsSuccess())
+                return onFailure($"Failed to aquire template:{templateInfo}");
 
-                var converter = new Newtonsoft.Json.Converters.ExpandoObjectConverter();
-                dynamic obj = Newtonsoft.Json.JsonConvert.DeserializeObject<System.Dynamic.ExpandoObject>(templateInfo, converter);
-                string html = obj.versions[0].html_content;
-                var htmlDoc = new HtmlAgilityPack.HtmlDocument();
-                htmlDoc.LoadHtml(html);
-                if (htmlDoc.ParseErrors != null && htmlDoc.ParseErrors.Count() > 0)
-                    return onFailure($"Template has parse errors:{htmlDoc.ParseErrors.Select(pe => pe.Reason).Join(";")}");
+            var converter = new Newtonsoft.Json.Converters.ExpandoObjectConverter();
+            dynamic obj = Newtonsoft.Json.JsonConvert.DeserializeObject<System.Dynamic.ExpandoObject>(templateInfo, converter);
+            string html = obj.versions[0].html_content;
+            var htmlDoc = new HtmlAgilityPack.HtmlDocument();
+            htmlDoc.LoadHtml(html);
+            if (htmlDoc.ParseErrors != null && htmlDoc.ParseErrors.Count() > 0)
+                return onFailure($"Template has parse errors:{htmlDoc.ParseErrors.Select(pe => pe.Reason).Join(";")}");
 
-                var substitutionsMultipleExpanded = substitutionsMultiple.SelectMany(
+            var substitutionsMultipleExpanded = substitutionsMultiple
+                .NullToEmpty()
+                .SelectMany(
                     (substitutionMultiple) =>
                     {
-                        var matchingNodes = htmlDoc.DocumentNode.SelectNodes($"//*[@data='--{substitutionMultiple.Key}--']");
-                        if (matchingNodes != null && matchingNodes.Count > 0)
-                        {
-                            var substituations = matchingNodes
+                        var matchingNodes = htmlDoc.DocumentNode.SelectNodes($"//*[@data-repeat='--{substitutionMultiple.Key}--']");
+                        if (!matchingNodes.NullToEmpty().Any())
+                            return new HtmlAgilityPack.HtmlNode[] { };
+
+                        var substituations = matchingNodes
                                 .Select(
                                     matchingNode =>
                                     {
-                                        var subText = substitutionMultiple.Value
-                                            .Select(
-                                                (subValues) =>
+                                        var parentNode = substitutionMultiple.Value
+                                            .Where(
+                                                subValues =>
                                                 {
-                                                    return subValues.Aggregate(
-                                                        matchingNode.OuterHtml,
-                                                        (subTextAggr, sub) =>
-                                                        {
-                                                            subTextAggr = subTextAggr.Replace($"--{sub.Key}--", sub.Value);
-                                                            return subTextAggr;
-                                                        });
+                                                    if (!matchingNode.Attributes.Contains("data-repeat-selector-key"))
+                                                        return true;
+                                                    if (!matchingNode.Attributes.Contains("data-repeat-selector-value"))
+                                                        return true;
+                                                    var key = matchingNode.Attributes["data-repeat-selector-key"].Value;
+                                                    if (!subValues.ContainsKey(key))
+                                                        return false;
+                                                    var value = matchingNode.Attributes["data-repeat-selector-value"].Value;
+                                                    return subValues[key] == value;
                                                 })
-                                            .Join(" ");
-                                        return new KeyValuePair<string, string>(matchingNode.OuterHtml, subText);
+                                            .Aggregate(matchingNode.ParentNode,
+                                                (parentNodeAggr, subValues) =>
+                                                {
+                                                    var newChildHtml =  subValues
+                                                        .Aggregate(
+                                                            matchingNode.OuterHtml,
+                                                            (subTextAggr, sub) =>
+                                                            {
+                                                                subTextAggr = subTextAggr.Replace($"--{sub.Key}--", sub.Value);
+                                                                return subTextAggr;
+                                                            });
+
+                                                    var childNode = HtmlAgilityPack.HtmlNode.CreateNode(newChildHtml);
+                                                    parentNodeAggr.AppendChild(childNode);
+                                                    return parentNodeAggr;
+                                                });
+
+                                        parentNode.RemoveChild(matchingNode);
+                                        //return new KeyValuePair<string, string>(matchingNode.OuterHtml, subText);
+                                        return matchingNode;
                                     })
                                 .ToArray();
-                            return substituations;
-                        }
-                        return new KeyValuePair<string, string>[] { };
-                    }).ToDictionary();
-                message.AddSubstitutions(substitutionsMultipleExpanded);
-            }
+                        return substituations;
+                    })
+                .ToArray();
+
+            // message.AddSubstitutions(substitutionsMultipleExpanded);
+            //message.HtmlContent = htmlDoc.DocumentNode.OuterHtml;
+            message.PlainTextContent = htmlDoc.DocumentNode.InnerText;
+
+            message.HtmlContent = subsitutionsSingleDictionary.Aggregate(
+                htmlDoc.DocumentNode.OuterHtml,
+                (outerHtml, substitutionSingle) =>
+                {
+                    return outerHtml.Replace($"--{substitutionSingle.Key}--", substitutionSingle.Value);
+                });
 
             // Send the email, which returns an awaitable task.
             try
