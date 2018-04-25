@@ -67,14 +67,15 @@ namespace EastFive.SendGrid
             var toAddressEmail = EastFive.Web.Configuration.Settings.GetString(AppSettings.MuteEmailToAddress,
                 (emailMuteString) =>
                 {
+                    if (emailMuteString.IsNullOrWhiteSpace())
+                        return new EmailAddress(toAddress, toName);
                     emailMute = true;
                     return new EmailAddress(emailMuteString, $"MUTED[{toAddress}:{toName}]");
                 },
                 (why) => new EmailAddress(toAddress, toName));
 
             message.AddTo(toAddressEmail);
-            if (emailMute)
-                message.SetClickTracking(false, false);
+            // message.SetClickTracking(false, false);
 
             var bccAddressesAdded = Web.Configuration.Settings.GetString(AppSettings.BccAllAddresses,
                 copyEmail =>
